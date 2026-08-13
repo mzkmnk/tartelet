@@ -6,6 +6,7 @@ import LoggingData
 import LoggingDomain
 import NetworkingData
 import Observation
+import Security
 import SettingsData
 import ShellData
 import SSHData
@@ -94,6 +95,20 @@ enum Composers {
 
 private extension Composers {
     private static func keychain(logger: Logger) -> Keychain {
-        Keychain(logger: logger, accessGroup: "566MC7D8D4.dk.shape.Tartelet")
+        Keychain(logger: logger, accessGroup: keychainAccessGroup)
+    }
+
+    private static var keychainAccessGroup: String? {
+        guard let task = SecTaskCreateFromSelf(nil),
+              let value = SecTaskCopyValueForEntitlement(
+                  task,
+                  "keychain-access-groups" as CFString,
+                  nil
+              ),
+              let accessGroups = value as? [String]
+        else {
+            return nil
+        }
+        return accessGroups.first
     }
 }

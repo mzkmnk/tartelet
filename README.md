@@ -4,6 +4,16 @@
 
 Tartelet makes it a breeze to manage up to two GitHub Actions runners in ephemeral virtual machines on a single host machine. The benefits are that runners can run in parallel and each job runs in an isolated environment that is recreated after each GitHub Actions job has finished.
 
+## Headless fork workflow
+
+This fork includes a local build-and-run entrypoint for running Tart virtual machines without graphics while keeping Tartelet available in the menu bar.
+
+1. Run `./script/build_and_run.sh --configure` to open the separately signed `TarteletHeadless` app and configure it.
+2. Quit `TarteletHeadless` after configuring it.
+3. Run `./script/build_and_run.sh` to launch it in the background with `TARTELET_RUN_OPTIONS=--no-graphics`.
+
+The build uses the first locally available Apple Development signing identity and does not store the identity or Team ID in the repository. Set `TARTELET_CODE_SIGN_IDENTITY` to a local identity hash to choose a different signing identity.
+
 - [🚀 Getting Started](https://github.com/shapehq/tartelet#-getting-started)
 - [👨‍🔧 How does it work?](https://github.com/shapehq/tartelet#-how-does-it-work)
 - [🏎 How is the performance?](https://github.com/shapehq/tartelet#-how-is-the-performance)
