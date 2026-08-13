@@ -14,13 +14,16 @@ public enum ConfigurationState {
     public init(
         settingsStore: some SettingsStore,
         virtualMachineSSHCredentialsStore: VirtualMachineSSHCredentialsStore,
-        githubCredentialsStore: GitHubCredentialsStore
+        githubCredentialsStore: GitHubCredentialsStore,
+        requiresSSHCredentials: Bool = true
     ) {
         if case .unknown = settingsStore.virtualMachine {
             self = .missingVirtualMachine
-        } else if (virtualMachineSSHCredentialsStore.username ?? "").isEmpty {
+        } else if requiresSSHCredentials
+                    && (virtualMachineSSHCredentialsStore.username ?? "").isEmpty {
             self = .missingSSHCredentials
-        } else if (virtualMachineSSHCredentialsStore.password ?? "").isEmpty {
+        } else if requiresSSHCredentials
+                    && (virtualMachineSSHCredentialsStore.password ?? "").isEmpty {
             self = .missingSSHCredentials
         } else if (githubCredentialsStore.appId ?? "").isEmpty {
             self = .missingGitHubAppId

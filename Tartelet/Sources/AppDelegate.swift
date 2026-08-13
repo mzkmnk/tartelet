@@ -8,17 +8,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let dock = Dock()
 
     func applicationWillFinishLaunching(_ notification: Notification) {
-        dock.setIconShown(Composers.settingsStore.applicationUIMode.showInDock)
+        dock.setIconShown(
+            isHeadless == false && Composers.settingsStore.applicationUIMode.showInDock
+        )
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        beginObservingAppIconVisibility()
+        if isHeadless == false {
+            beginObservingAppIconVisibility()
+        }
         if Composers.settingsStore.startVirtualMachinesOnLaunch {
             Composers.fleet.start(numberOfMachines: Composers.settingsStore.numberOfVirtualMachines)
         }
 
         // If Tartelet is launched as a login item, we can keep the window hidden
-        if launchedAsLogInItem == false {
+        if launchedAsLogInItem == false && isHeadless == false {
             openSettingsWindow()
         }
     }
@@ -37,6 +41,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 private extension AppDelegate {
+    private var isHeadless: Bool {
+        ProcessInfo.processInfo.environment["TARTELET_HEADLESS"] == "1"
+    }
+
     private func beginObservingAppIconVisibility() {
         withObservationTracking {
             _ = settingsStore.applicationUIMode

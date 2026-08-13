@@ -48,23 +48,36 @@ public struct Tart {
         let result = try await executeCommand(withArguments: ["ip", name])
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    public func execute(_ command: String, inVirtualMachineNamed name: String) async throws -> String {
+        try await executeCommand(
+            withArguments: ["exec", "-i", name, "/bin/zsh", "-s"],
+            standardInput: command + "\n"
+        )
+    }
 }
 
 private extension Tart {
     @discardableResult
-    private func executeCommand(withArguments arguments: [String]) async throws -> String {
+    private func executeCommand(
+        withArguments arguments: [String],
+        standardInput: String? = nil
+    ) async throws -> String {
         let locator = TartLocator(shell: shell)
         let filePath = try locator.locate()
         if let environment {
             return try await shell.runExecutable(
                 atPath: filePath,
                 withArguments: arguments,
-                environment: environment
+                environment: environment,
+                standardInput: standardInput
             )
         } else {
             return try await shell.runExecutable(
                 atPath: filePath,
-                withArguments: arguments
+                withArguments: arguments,
+                environment: [:],
+                standardInput: standardInput
             )
         }
     }

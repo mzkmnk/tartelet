@@ -20,7 +20,8 @@ struct TarteletApp: App {
             configurationState: ConfigurationState(
                 settingsStore: Composers.settingsStore,
                 virtualMachineSSHCredentialsStore: Composers.virtualMachineSSHCredentialsStore,
-                githubCredentialsStore: Composers.gitHubCredentialsStore
+                githubCredentialsStore: Composers.gitHubCredentialsStore,
+                requiresSSHCredentials: !Composers.shouldUseTartGuestAgent
             ),
             virtualMachineState: VirtualMachineState(fleet: Composers.fleet, editor: Composers.editor)
         )
