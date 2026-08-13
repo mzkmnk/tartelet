@@ -48,16 +48,19 @@ public struct GitHubActionsRunnerSSHConnectionHandler: VirtualMachineSSHConnecti
             runnerScope: configuration.runnerScope
         )
         let startRunnerScriptFilePath = "~/start-runner.sh"
-        try await connection.executeCommand("touch \(startRunnerScriptFilePath)")
         try await connection.executeCommand("""
+rm -f \(startRunnerScriptFilePath)
+umask 077
 cat > \(startRunnerScriptFilePath) << EOF
 #!/bin/zsh
 ACTIONS_RUNNER_ARCHIVE=./actions-runner.tar.gz
 ACTIONS_RUNNER_DIRECTORY=~/actions-runner
+START_RUNNER_SCRIPT="\\$HOME/start-runner.sh"
 
 # Ensure the virtual machine is restarted when a job is done.
-set -e pipefail
+set -e -o pipefail
 function onexit {
+  rm -f "\\$START_RUNNER_SCRIPT"
   sudo shutdown -h now
 }
 trap onexit EXIT
@@ -110,10 +113,11 @@ cd \\$ACTIONS_RUNNER_DIRECTORY
   --token "\(runnerToken.rawValue)"\\\\
   \(configuration.runnerDisableUpdates ? "--disableupdate" : "")\\\\
   \(configuration.runnerDisableDefaultLabels ? "--no-default-labels" : "")
+rm -f "\\$START_RUNNER_SCRIPT"
 ./run.sh
 EOF
 """)
-        try await connection.executeCommand("chmod +x \(startRunnerScriptFilePath)")
+        try await connection.executeCommand("chmod 700 \(startRunnerScriptFilePath)")
         try await connection.executeCommand("open -a Terminal \(startRunnerScriptFilePath)")
     }
     private func runnerName(for virtualMachine: VirtualMachine) -> String {

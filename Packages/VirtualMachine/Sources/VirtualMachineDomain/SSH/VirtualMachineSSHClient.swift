@@ -124,7 +124,7 @@ private extension VirtualMachineSSHClient {
         } catch {
             logger.error(
                 "Failed connecting to \(virtualMachineName) on \(host): "
-                + error.localizedDescription
+                + String(reflecting: error)
             )
             throw error
         }

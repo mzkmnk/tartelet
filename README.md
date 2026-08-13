@@ -12,6 +12,8 @@ This fork includes a local build-and-run entrypoint for running Tart virtual mac
 2. Quit `TarteletHeadless` after configuring it.
 3. Run `./script/build_and_run.sh` to launch it in the background with `TARTELET_RUN_OPTIONS=--no-graphics`.
 
+The script launches the separately signed app through Launch Services with its windows and VM graphics hidden. It sets `TARTELET_USE_TART_EXEC=1`, and the `TarteletHeadless` bundle also defaults to this transport, so the selected VM image must include Tart Guest Agent. SSH credentials are not required in this mode.
+
 The build uses the first locally available Apple Development signing identity and does not store the identity or Team ID in the repository. Set `TARTELET_CODE_SIGN_IDENTITY` to a local identity hash to choose a different signing identity.
 
 - [🚀 Getting Started](https://github.com/shapehq/tartelet#-getting-started)

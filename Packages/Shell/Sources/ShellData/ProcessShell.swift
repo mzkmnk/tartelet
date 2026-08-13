@@ -7,7 +7,8 @@ public struct ProcessShell: Shell {
     public func runExecutable(
         atPath executablePath: String,
         withArguments arguments: [String],
-        environment: [String: String]
+        environment: [String: String],
+        standardInput: String?
     ) async throws -> String {
         let process = Process()
         let sendableProcess = SendableProcess(process)
@@ -16,9 +17,14 @@ public struct ProcessShell: Shell {
             process.standardOutput = pipe
             process.arguments = arguments
             process.launchPath = executablePath
-            process.standardInput = nil
+            let standardInputPipe = standardInput.map { _ in Pipe() }
+            process.standardInput = standardInputPipe
             process.environment = environment
             try process.run()
+            if let standardInput, let standardInputPipe {
+                standardInputPipe.fileHandleForWriting.write(Data(standardInput.utf8))
+                try standardInputPipe.fileHandleForWriting.close()
+            }
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             // Explicitly close the pipe file handle to prevent running out of file descriptors.
             // See https://github.com/swiftlang/swift/issues/57827

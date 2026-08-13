@@ -49,15 +49,19 @@ codesign --verify --deep --strict "$APP_BUNDLE"
 launch_headless_app() {
     /usr/bin/open -n -g \
         --env TARTELET_HEADLESS=1 \
+        --env TARTELET_USE_TART_EXEC=1 \
         --env TARTELET_RUN_OPTIONS=--no-graphics \
+        --env "LLVM_PROFILE_FILE=$ROOT_DIR/.build/$APP_NAME-%p.profraw" \
         "$APP_BUNDLE"
 }
 
 launch_configuration_app() {
-    /usr/bin/open -n "$APP_BUNDLE"
+    /usr/bin/open -n --env TARTELET_USE_TART_EXEC=1 "$APP_BUNDLE"
 }
 
-pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+if [[ "$MODE" != "--build-only" && "$MODE" != "build-only" ]]; then
+    pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+fi
 
 case "$MODE" in
     run)
@@ -67,7 +71,7 @@ case "$MODE" in
         launch_configuration_app
         ;;
     --debug|debug)
-        TARTELET_HEADLESS=1 TARTELET_RUN_OPTIONS=--no-graphics \
+        TARTELET_HEADLESS=1 TARTELET_USE_TART_EXEC=1 TARTELET_RUN_OPTIONS=--no-graphics \
             lldb -- "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
         ;;
     --logs|logs)

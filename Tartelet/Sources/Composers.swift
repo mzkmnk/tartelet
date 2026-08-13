@@ -1,4 +1,5 @@
 import FileSystemData
+import Foundation
 import GitHubData
 import GitHubDomain
 import Keychain
@@ -18,42 +19,7 @@ enum Composers {
 
     static let fleet = VirtualMachineFleet(
         logger: logger(subsystem: "VirtualMachineFleet"),
-        baseVirtualMachine: SSHConnectingVirtualMachine(
-            logger: logger(subsystem: "SSHConnectingVirtualMachine"),
-            virtualMachine: SettingsVirtualMachine(
-                tart: Tart(
-                    homeProvider: SettingsTartHomeProvider(
-                        settingsStore: settingsStore
-                    ),
-                    shell: ProcessShell()
-                ),
-                settingsStore: settingsStore
-            ),
-            sshClient: VirtualMachineSSHClient(
-                logger: logger(subsystem: "VirtualMachineSSHClient"),
-                client: CitadelSSHClient(
-                    logger: logger(subsystem: "CitadelSSHClient")
-                ),
-                ipAddressReader: RetryingVirtualMachineIPAddressReader(),
-                credentialsStore: virtualMachineSSHCredentialsStore,
-                connectionHandler: CompositeVirtualMachineSSHConnectionHandler([
-                    PostBootScriptSSHConnectionHandler(),
-                    GitHubActionsRunnerSSHConnectionHandler(
-                        logger: logger(subsystem: "GitHubActionsRunnerSSHConnectionHandler"),
-                        client: NetworkingGitHubClient(
-                            credentialsStore: gitHubCredentialsStore,
-                            networkingService: URLSessionNetworkingService(
-                                logger: logger(subsystem: "URLSessionNetworkingService")
-                            )
-                        ),
-                        credentialsStore: gitHubCredentialsStore,
-                        configuration: SettingsGitHubActionsRunnerConfiguration(
-                            settingsStore: settingsStore
-                        )
-                    )
-                ])
-            )
-        )
+        baseVirtualMachine: baseVirtualMachine
     )
 
     static let editor = VirtualMachineEditor(
@@ -93,7 +59,62 @@ enum Composers {
     }
 }
 
-private extension Composers {
+extension Composers {
+    private static var baseVirtualMachine: VirtualMachine {
+        let tart = Tart(
+            homeProvider: SettingsTartHomeProvider(settingsStore: settingsStore),
+            shell: ProcessShell()
+        )
+        let virtualMachine = SettingsVirtualMachine(
+            tart: tart,
+            settingsStore: settingsStore
+        )
+        let connectionHandler = CompositeVirtualMachineSSHConnectionHandler([
+            PostBootScriptSSHConnectionHandler(),
+            GitHubActionsRunnerSSHConnectionHandler(
+                logger: logger(subsystem: "GitHubActionsRunnerSSHConnectionHandler"),
+                client: NetworkingGitHubClient(
+                    credentialsStore: gitHubCredentialsStore,
+                    networkingService: URLSessionNetworkingService(
+                        logger: logger(subsystem: "URLSessionNetworkingService")
+                    )
+                ),
+                credentialsStore: gitHubCredentialsStore,
+                configuration: SettingsGitHubActionsRunnerConfiguration(
+                    settingsStore: settingsStore
+                )
+            )
+        ])
+
+        if shouldUseTartGuestAgent {
+            return TartExecConnectingVirtualMachine(
+                logger: logger(subsystem: "TartExecConnectingVirtualMachine"),
+                virtualMachine: virtualMachine,
+                tart: tart,
+                connectionHandler: connectionHandler
+            )
+        }
+
+        return SSHConnectingVirtualMachine(
+            logger: logger(subsystem: "SSHConnectingVirtualMachine"),
+            virtualMachine: virtualMachine,
+            sshClient: VirtualMachineSSHClient(
+                logger: logger(subsystem: "VirtualMachineSSHClient"),
+                client: CitadelSSHClient(
+                    logger: logger(subsystem: "CitadelSSHClient")
+                ),
+                ipAddressReader: RetryingVirtualMachineIPAddressReader(),
+                credentialsStore: virtualMachineSSHCredentialsStore,
+                connectionHandler: connectionHandler
+            )
+        )
+    }
+
+    static var shouldUseTartGuestAgent: Bool {
+        ProcessInfo.processInfo.environment["TARTELET_USE_TART_EXEC"] == "1"
+            || Bundle.main.bundleIdentifier == "com.mzkmnk.TarteletHeadless"
+    }
+
     private static func keychain(logger: Logger) -> Keychain {
         Keychain(logger: logger, accessGroup: keychainAccessGroup)
     }
