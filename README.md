@@ -22,6 +22,22 @@ The headless behavior and `--no-graphics` option are embedded in the `TarteletHe
 
 The build uses the first locally available Apple Development signing identity and does not store the identity or Team ID in the repository. Set `TARTELET_CODE_SIGN_IDENTITY` to a local identity hash to choose a different signing identity.
 
+### Headless releases
+
+Create a notarized arm64 release from a clean checkout using a locally installed Developer ID Application identity and an authenticated `asc` profile:
+
+```sh
+./script/release_headless.sh 0.12.1
+```
+
+After publishing the generated ZIP and checksum as a GitHub Release, download, verify, replace, and canary the installed app with:
+
+```sh
+./script/install_headless_release.sh 0.12.1
+```
+
+The installer stops the LaunchAgent only after validating the downloaded release and confirming that the GitHub Actions runner is idle. It auto-detects a single running VM and refuses multi-VM installations; set `TARTELET_CANARY_VM_NAME` to require a specific VM. It keeps the previous app in Trash for rollback and does not reinstall the Tart CLI.
+
 - [🚀 Getting Started](https://github.com/shapehq/tartelet#-getting-started)
 - [👨‍🔧 How does it work?](https://github.com/shapehq/tartelet#-how-does-it-work)
 - [🏎 How is the performance?](https://github.com/shapehq/tartelet#-how-is-the-performance)
