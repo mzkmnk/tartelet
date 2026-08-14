@@ -17,11 +17,13 @@ import VirtualMachineDomain
 enum Composers {
     static let settingsStore = AppStorageSettingsStore()
 
+    @MainActor
     static let fleet = VirtualMachineFleet(
         logger: logger(subsystem: "VirtualMachineFleet"),
         baseVirtualMachine: baseVirtualMachine
     )
 
+    @MainActor
     static let editor = VirtualMachineEditor(
         logger: logger(subsystem: "VirtualMachineEditor"),
         virtualMachine: SettingsVirtualMachine(
@@ -63,7 +65,8 @@ extension Composers {
     private static var baseVirtualMachine: VirtualMachine {
         let tart = Tart(
             homeProvider: SettingsTartHomeProvider(settingsStore: settingsStore),
-            shell: ProcessShell()
+            shell: ProcessShell(),
+            defaultRunOptions: defaultTartRunOptions
         )
         let virtualMachine = SettingsVirtualMachine(
             tart: tart,
@@ -112,7 +115,32 @@ extension Composers {
 
     static var shouldUseTartGuestAgent: Bool {
         ProcessInfo.processInfo.environment["TARTELET_USE_TART_EXEC"] == "1"
-            || Bundle.main.bundleIdentifier == "com.mzkmnk.TarteletHeadless"
+            || isHeadlessBuild
+    }
+
+    static var isHeadlessUI: Bool {
+        switch ProcessInfo.processInfo.environment["TARTELET_HEADLESS"] {
+        case "0":
+            return false
+        case "1":
+            return true
+        default:
+            return isHeadlessBuild
+        }
+    }
+
+    static var isHeadlessBuild: Bool {
+        if let value = Bundle.main.object(forInfoDictionaryKey: "TarteletHeadlessBuild") as? Bool {
+            return value
+        }
+        if let value = Bundle.main.object(forInfoDictionaryKey: "TarteletHeadlessBuild") as? String {
+            return (value as NSString).boolValue
+        }
+        return false
+    }
+
+    private static var defaultTartRunOptions: [String] {
+        isHeadlessBuild ? ["--no-graphics"] : []
     }
 
     private static func keychain(logger: Logger) -> Keychain {
