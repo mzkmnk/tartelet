@@ -2,6 +2,7 @@ import Foundation
 import ShellDomain
 
 public struct Tart {
+    private let defaultRunOptions: [String]
     private let homeProvider: TartHomeProvider
     private let shell: Shell
     private var environment: [String: String]? {
@@ -11,9 +12,14 @@ public struct Tart {
         return ["TART_HOME": homeFolderURL.path(percentEncoded: false)]
     }
 
-    public init(homeProvider: TartHomeProvider, shell: Shell) {
+    public init(
+        homeProvider: TartHomeProvider,
+        shell: Shell,
+        defaultRunOptions: [String] = []
+    ) {
         self.homeProvider = homeProvider
         self.shell = shell
+        self.defaultRunOptions = defaultRunOptions
     }
 
     public func clone(sourceName: String, newName: String) async throws {
@@ -27,12 +33,28 @@ public struct Tart {
         if !FileManager.default.fileExists(atPath: cacheFolder.path) {
             try FileManager.default.createDirectory(atPath: cacheFolder.path, withIntermediateDirectories: true)
         }
-        var runArgs =  ["run", "--dir=cache:\(cacheFolder.path())"]
-        if let tartRunOptions = ProcessInfo.processInfo.environment["TARTELET_RUN_OPTIONS"] {
-            runArgs.append(tartRunOptions)
+        let runArgs = makeRunArguments(
+            name: name,
+            cacheFolder: cacheFolder,
+            environmentRunOption: ProcessInfo.processInfo.environment["TARTELET_RUN_OPTIONS"]
+        )
+        try await executeCommand(withArguments: runArgs)
+    }
+
+    func makeRunArguments(
+        name: String,
+        cacheFolder: URL,
+        environmentRunOption: String?
+    ) -> [String] {
+        var runArgs = ["run", "--dir=cache:\(cacheFolder.path())"]
+        runArgs.append(contentsOf: defaultRunOptions)
+        if let tartRunOptions = environmentRunOption {
+            if !runArgs.contains(tartRunOptions) {
+                runArgs.append(tartRunOptions)
+            }
         }
         runArgs.append(name)
-        try await executeCommand(withArguments: runArgs)
+        return runArgs
     }
 
     public func delete(name: String) async throws {

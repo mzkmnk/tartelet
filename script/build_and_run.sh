@@ -8,6 +8,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DERIVED_DATA="$ROOT_DIR/.build/DerivedData"
 APP_BUNDLE="$DERIVED_DATA/Build/Products/Debug/$APP_NAME.app"
 BUILD_LOG="$ROOT_DIR/.build/xcodebuild.log"
+LAUNCH_AGENT_TARGET="gui/$(id -u)/$BUNDLE_ID"
 
 detect_signing_identity() {
     security find-identity -v -p codesigning \
@@ -38,6 +39,12 @@ if ! xcodebuild \
     exit 1
 fi
 
+INFO_PLIST="$APP_BUNDLE/Contents/Info.plist"
+plutil -remove TarteletHeadlessBuild "$INFO_PLIST" 2>/dev/null || true
+plutil -remove LSMultipleInstancesProhibited "$INFO_PLIST" 2>/dev/null || true
+plutil -insert TarteletHeadlessBuild -bool true "$INFO_PLIST"
+plutil -insert LSMultipleInstancesProhibited -bool true "$INFO_PLIST"
+
 codesign \
     --force \
     --deep \
@@ -47,7 +54,7 @@ codesign \
 codesign --verify --deep --strict "$APP_BUNDLE"
 
 launch_headless_app() {
-    /usr/bin/open -n -g \
+    /usr/bin/open -g \
         --env TARTELET_HEADLESS=1 \
         --env TARTELET_USE_TART_EXEC=1 \
         --env TARTELET_RUN_OPTIONS=--no-graphics \
@@ -56,11 +63,29 @@ launch_headless_app() {
 }
 
 launch_configuration_app() {
-    /usr/bin/open -n --env TARTELET_USE_TART_EXEC=1 "$APP_BUNDLE"
+    /usr/bin/open \
+        --env TARTELET_HEADLESS=0 \
+        --env TARTELET_USE_TART_EXEC=1 \
+        "$APP_BUNDLE"
 }
 
 if [[ "$MODE" != "--build-only" && "$MODE" != "build-only" ]]; then
+    if launchctl print "$LAUNCH_AGENT_TARGET" >/dev/null 2>&1; then
+        echo "$LAUNCH_AGENT_TARGET is loaded." >&2
+        echo "Boot out the launch agent before launching a development build." >&2
+        exit 1
+    fi
     pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+    for _ in {1..400}; do
+        if ! pgrep -x "$APP_NAME" >/dev/null; then
+            break
+        fi
+        sleep 0.1
+    done
+    if pgrep -x "$APP_NAME" >/dev/null; then
+        echo "$APP_NAME did not terminate within 40 seconds." >&2
+        exit 1
+    fi
 fi
 
 case "$MODE" in

@@ -1,6 +1,7 @@
 import LoggingDomain
 import Observation
 
+@MainActor
 @Observable
 public final class VirtualMachineFleet {
     public private(set) var isStarted = false
@@ -16,7 +17,7 @@ public final class VirtualMachineFleet {
     }
 
     public func start(numberOfMachines: Int) {
-        guard !isStarted else {
+        guard !isStarted, !isStopping, numberOfMachines > 0 else {
             return
         }
         guard baseVirtualMachine.canStart else {
@@ -30,29 +31,41 @@ public final class VirtualMachineFleet {
     }
 
     public func stopImmediately() {
-        isStarted = false
-        isStopping = false
-        for (_, task) in activeTasks {
-            task.cancel()
+        _ = cancelAllActiveTasks()
+    }
+
+    public func stopImmediatelyAndWait() async {
+        let tasks = cancelAllActiveTasks()
+        for task in tasks {
+            await task.value
         }
-        activeTasks = [:]
     }
 
     public func stop() {
         isStopping = true
+    }
+
+    private func cancelAllActiveTasks() -> [Task<(), Never>] {
+        isStarted = false
+        isStopping = true
+        let tasks = Array(activeTasks.values)
+        for task in tasks {
+            task.cancel()
+        }
+        if tasks.isEmpty {
+            isStopping = false
+        }
+        return tasks
     }
 }
 
 private extension VirtualMachineFleet {
     private func startSequentiallyRunningVirtualMachines(named name: String) {
         let task = Task {
-            while !Task.isCancelled {
+            while !Task.isCancelled, !isStopping {
                 do {
                     let virtualMachine = try await baseVirtualMachine.clone(named: name)
                     try await runVirtualMachine(virtualMachine)
-                    if isStopping {
-                        activeTasks[name]?.cancel()
-                    }
                 } catch {
                     // Ignore the error and try again until the task is cancelled. The error should
                     // have been logged so we know what is going on in case we need to debug.
@@ -63,45 +76,44 @@ private extension VirtualMachineFleet {
             logger.info("Task running virtual machine named \(name) was cancelled.")
             activeTasks.removeValue(forKey: name)
             if activeTasks.isEmpty {
-                stopImmediately()
+                isStarted = false
+                isStopping = false
             }
         }
         activeTasks[name] = task
     }
 
     private func runVirtualMachine(_ virtualMachine: VirtualMachine) async throws {
-        try await withTaskCancellationHandler {
-            logger.info("Start virtual machine named \(virtualMachine.name)")
-            do {
-                try await virtualMachine.start()
-                logger.info("Did stop virtual machine named \(virtualMachine.name)")
-                do {
-                    try await virtualMachine.delete()
-                    logger.info("Did delete virtual machine named \(virtualMachine.name)")
-                } catch {
-                    logger.info("Could not delete virtual machine named \(virtualMachine.name)")
-                    throw error
-                }
-            } catch {
-                logger.info(
-                    "Virtual machine named \(virtualMachine.name) stopped with message: "
-                    + error.localizedDescription
-                )
-                throw error
+        logger.info("Start virtual machine named \(virtualMachine.name)")
+        do {
+            try await virtualMachine.start()
+            try Task.checkCancellation()
+            logger.info("Did stop virtual machine named \(virtualMachine.name)")
+        } catch {
+            logger.info(
+                "Virtual machine named \(virtualMachine.name) stopped with message: "
+                + error.localizedDescription
+            )
+            try await deleteVirtualMachineAfterStart(virtualMachine)
+            throw error
+        }
+        try await deleteVirtualMachineAfterStart(virtualMachine)
+    }
+
+    private func deleteVirtualMachineAfterStart(_ virtualMachine: VirtualMachine) async throws {
+        logger.info("Delete virtual machine named \(virtualMachine.name)")
+        do {
+            let deletionTask = Task(priority: .high) {
+                try await virtualMachine.delete()
             }
-        } onCancel: {
-            Task.detached(priority: .high) {
-                self.logger.info("Stop virtual machine named \(virtualMachine.name)")
-                do {
-                    try await virtualMachine.delete()
-                } catch {
-                    self.logger.info(
-                        "Could not delete virtual machine named \(virtualMachine.name): "
-                        + error.localizedDescription
-                    )
-                    throw error
-                }
-            }
+            try await deletionTask.value
+            logger.info("Did delete virtual machine named \(virtualMachine.name)")
+        } catch {
+            logger.info(
+                "Could not delete virtual machine named \(virtualMachine.name): "
+                + error.localizedDescription
+            )
+            throw error
         }
     }
 }

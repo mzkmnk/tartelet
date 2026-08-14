@@ -1,6 +1,7 @@
 import Foundation
 import LoggingDomain
 
+@MainActor
 @Observable
 public final class VirtualMachineEditor {
     public private(set) var isStarted = false
@@ -25,25 +26,23 @@ public final class VirtualMachineEditor {
         }
         logger.info("Will start virtual machine editor...")
         runTask = Task {
-            try await withTaskCancellationHandler {
-                defer {
-                    self.runTask = nil
-                }
-                try await virtualMachine.start()
-            } onCancel: {
-                self.stop()
+            defer {
+                self.runTask = nil
+                self.logger.info("Did stop virtual machine editor")
             }
+            try await virtualMachine.start()
         }
     }
 
     public func stop() {
-        guard runTask != nil else {
+        runTask?.cancel()
+    }
+
+    public func stopImmediatelyAndWait() async {
+        guard let runTask else {
             return
         }
-        runTask?.cancel()
-        runTask = Task {
-            self.runTask = nil
-            self.logger.info("Did stop virtual machine editor")
-        }
+        runTask.cancel()
+        _ = try? await runTask.value
     }
 }

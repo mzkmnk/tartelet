@@ -10,9 +10,15 @@ This fork includes a local build-and-run entrypoint for running Tart virtual mac
 
 1. Run `./script/build_and_run.sh --configure` to open the separately signed `TarteletHeadless` app and configure it.
 2. Quit `TarteletHeadless` after configuring it.
-3. Run `./script/build_and_run.sh` to launch it in the background with `TARTELET_RUN_OPTIONS=--no-graphics`.
+3. Run `./script/build_and_run.sh` to launch it in the background without VM graphics.
+
+If a `launchd` service for the installed app is loaded, boot it out before running or configuring a development build. The script refuses to start a second fleet while that service is active.
+
+The LaunchAgent should set `ExitTimeOut` to at least 40 seconds so the app can stop Tart and delete the ephemeral VM before launchd forces it to exit.
 
 The script launches the separately signed app through Launch Services with its windows and VM graphics hidden. It sets `TARTELET_USE_TART_EXEC=1`, and the `TarteletHeadless` bundle also defaults to this transport, so the selected VM image must include Tart Guest Agent. SSH credentials are not required in this mode.
+
+The headless behavior and `--no-graphics` option are embedded in the `TarteletHeadless` build, so launching the installed app from Finder remains headless even when no launch environment variables are present. A process lock also prevents Finder and the launch agent from starting competing VM fleets.
 
 The build uses the first locally available Apple Development signing identity and does not store the identity or Team ID in the repository. Set `TARTELET_CODE_SIGN_IDENTITY` to a local identity hash to choose a different signing identity.
 
