@@ -107,7 +107,10 @@ SIGNATURE_DETAILS="$(codesign -dv --verbose=4 "$APP_PATH" 2>&1)"
 grep -Fq "Authority=Developer ID Application:" <<< "$SIGNATURE_DETAILS"
 grep -Fq "TeamIdentifier=$EXPECTED_TEAM_ID" <<< "$SIGNATURE_DETAILS"
 grep -Fq "Timestamp=" <<< "$SIGNATURE_DETAILS"
-syspolicy_check notary-submission --verbose "$APP_PATH"
+# `syspolicy_check notary-submission` can report only a non-actionable
+# "Gatekeeper rejected this file" for a correctly signed app that has not yet
+# received its first notarization ticket. The notary service is authoritative;
+# the stricter distribution policy check still runs after stapling below.
 test "$(plutil -extract CFBundleIdentifier raw "$INFO_PLIST")" = "$BUNDLE_ID"
 test "$(plutil -extract CFBundleShortVersionString raw "$INFO_PLIST")" = "$VERSION"
 test "$(plutil -extract TarteletHeadlessBuild raw "$INFO_PLIST")" = true
